@@ -10,6 +10,7 @@
 #include <kdebug.h>
 
 #define TICK_NUM 100
+#define INT_NUM 256
 
 static void print_ticks() {
     cprintf("%d ticks\n",TICK_NUM);
@@ -19,6 +20,7 @@ static void print_ticks() {
 #endif
 }
 
+// 中断描述表
 /* *
  * Interrupt descriptor table:
  *
@@ -32,6 +34,12 @@ static struct pseudodesc idt_pd = {
 };
 
 /* idt_init - initialize IDT to each of the entry points in kern/trap/vectors.S */
+/*
+    init函数依次对所有中断入口进行初始化
+    (1) 所有中断服务历程的入口地址存储在__vectors里，该变量位于kern/trap/vector.S文件里
+    (2) 可以设置IDT里的ISR入口地址，使用SETGATE宏填充IDT数组内容
+    (3) 在设置IDT内容后，使用lidt指令让知道IDT在哪，而lidt的参数是idt_pd
+*/
 void
 idt_init(void) {
      /* LAB1 YOUR CODE : STEP 2 */
@@ -46,6 +54,13 @@ idt_init(void) {
       *     You don't know the meaning of this instruction? just google it! and check the libs/x86.h to know more.
       *     Notice: the argument of lidt is idt_pd. try to find it!
       */
+     int i;
+     extern uintptr_t __vectors[]; // 声明中断入口
+     for(i=0; i<sizeof(idt)/sizeof(struct gatedesc);i++){
+        SETGATE(idt[i], 0, GD_KTEXT, __vectors[i], DPL_KERNEL);
+     }
+     SETGATE(idt[T_SYSCALL],0,GD_KTEXT,__vectors[T_SYSCALL],DPL_USER);
+     lidt(&idt_pd); // 将IDT起始地址放到IDTR寄存器
 }
 
 static const char *
@@ -147,6 +162,10 @@ trap_dispatch(struct trapframe *tf) {
          * (2) Every TICK_NUM cycle, you can print some info using a funciton, such as print_ticks().
          * (3) Too Simple? Yes, I think so!
          */
+        ticks++;
+        if(ticks%TICK_NUM==0){
+            print_ticks();
+        }
         break;
     case IRQ_OFFSET + IRQ_COM1:
         c = cons_getc();
@@ -184,4 +203,5 @@ trap(struct trapframe *tf) {
     // dispatch based on what type of trap occurred
     trap_dispatch(tf);
 }
+
 
